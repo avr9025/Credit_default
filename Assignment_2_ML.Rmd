@@ -1,0 +1,123 @@
+---
+title: "Assignment_2_ML"
+author: "Amritha V - 17225760005"
+date: "29 May 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+credit<-read.csv("E:\\College stuff\\SEM 2\\Machine Learning\\Dataset for assignments\\credit-default.csv")
+df<-credit
+
+library(rpart)
+library(rattle)
+library(randomForest)
+library(adabag)
+library(e1071)
+library(BBmisc)
+library(class)
+View(head(df))
+df_train<-df[sample(seq(1,nrow(df)),0.7*nrow(df)),]
+df_test<-df[sample(seq(1,nrow(df)),0.3*nrow(df)),]
+str(df_test)
+
+```
+
+## Decision tree
+```{r}
+df_train$default<-as.factor(df_train$default)
+df_test$default<-as.factor(df_test$default)
+model_dt<-rpart(default~.,data=df_train)
+predicted_dt1<-predict(model_dt,df_test,type="class")
+head(predicted_dt1)
+
+nrow(df_test)
+cm_dt<-confusionMatrix(predicted_dt1,df_test$default,positive="1")
+dt_acc<-round((cm_dt$overall["Accuracy"]*100),2)
+dt_sens<-round((cm_dt$byClass["Sensitivity"]*100),2)
+```
+## Random Forest
+```{r}
+
+mtry<-round(sqrt(length(colnames(df_train))-1))
+model_rf <-randomForest(default~.,data=df_train,mtry=mtry)
+pred_rf <- predict(model_rf,df_test)
+length(pred_rf)
+cm_rf<-confusionMatrix(pred_rf,df_test$default,positive="1")
+rf_sens<-round((cm_rf$byClass["Sensitivity"]*100),2)
+rf_acc<-round((cm_rf$overall["Accuracy"]*100),2)
+```
+
+## Ada boost
+```{r}
+model_b<-boosting(default~.,data=df_train)
+pred_b_c<-predict(model_b,df_test)
+pred_b<-pred_b_c$class
+pred_b<-as.factor(pred_b)
+cm_b<-confusionMatrix(pred_b,df_test$default,positive="1")
+b_sens<-round((cm_b$byClass["Sensitivity"]*100),2)
+b_acc<-round((cm_b$overall["Accuracy"]*100),2)
+
+```
+
+## KNN
+```{r}
+library(dplyr)
+dummy_obj<-dummyVars(~.,data=df %>% select(-default))
+df_knn<-data.frame(predict(dummy_obj,df))
+df_knn$default<-df$default
+df_knn_norm<-normalize(df_knn,method="range",range=c(0,1))
+
+df_knn_train<-df_knn_norm[sample(seq(1,nrow(df_knn_norm)),0.7*nrow(df_knn_norm)),]
+colnames(df_knn_train)
+
+df_knn_test<-df_knn_norm[sample(seq(1,nrow(df_knn_norm)),0.3*nrow(df_knn_norm)),]
+
+round(sqrt(nrow(df_knn_train)))
+df_knn_test$predict<-knn(df_knn_train,
+                         df_knn_test,
+                         cl=df_knn_train$default,k=26)
+df_knn_test$default<-as.factor(df_knn_test$default)
+df_knn_test$predict<-as.factor(df_knn_test$predict)
+cm_knn<-confusionMatrix(df_knn_test$predict,df_knn_test$default,positive = "1")
+knn_acc<-round((cm_knn$overall["Accuracy"]*100),2)
+knn_sens<-round((cm_knn$byClass["Sensitivity"]*100),2)
+```
+## Naive Bayes
+```{r}
+model_nb<-naiveBayes(default~.,data=df_train)
+pred_nb<-predict(model_nb,df_test,type="class")
+cm_nb<-confusionMatrix(pred_nb,df_test$default,positive="1")
+nb_acc<-round((cm_nb$overall["Accuracy"]*100),2)
+nb_sens<-round((cm_nb$byClass["Sensitivity"]*100),2)
+```
+
+Table comparing algorithms vs their Accuracy & Sensitivity
+```{r}
+Algorithm<-c("Decision Tree","Random Forest","Adaptive Boosting","K Nearest Neighbours","Naive Bayes")
+Accuracy<-c(dt_acc,rf_acc,b_acc,knn_acc,nb_acc)
+Sensitivity<-c(dt_sens,rf_sens,b_sens,knn_sens,nb_sens)
+
+final_df<-data.frame(Algorithm)
+final_df<-cbind(final_df,Accuracy)
+final_df<-cbind(final_df,Sensitivity)
+final_df
+```
+### Bar chart comparing Accuracy and Sensitivity of each Algorithm
+```{r}
+library(ggplot2)
+library(reshape2)
+
+df2 <- melt(final_df, id.vars = "Algorithm", measure.vars = c("Accuracy", "Sensitivity"))
+
+
+ggplot(df2,aes(x=Algorithm,y=value,fill=variable))+geom_bar(stat="identity",position=position_dodge())+theme_bw() + theme(axis.title.x = element_blank(),              axis.title.y = element_blank())
+
+```
+
